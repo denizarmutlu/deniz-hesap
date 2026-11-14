@@ -1,0 +1,41 @@
+.hk-wrap h2 { margin: 28px 0 10px; font-size: 16px; }
+.hk-alt { color: #646970; font-weight: 400; font-size: 12px; }
+h2 .hk-alt { margin-left: 6px; }
+.hk-kartlar { display: flex; flex-wrap: wrap; gap: 12px; margin: 14px 0 6px; }
+.hk-kart { background: #fff; border: 1px solid #dcdcde; border-left: 4px solid #8c8f94; border-radius: 4px; padding: 12px 16px; min-width: 170px; flex: 1 1 170px; max-width: 260px; }
+.hk-kart-etiket { color: #646970; font-size: 12px; margin-bottom: 4px; }
+.hk-kart-deger { font-size: 22px; font-weight: 600; line-height: 1.3; font-variant-numeric: tabular-nums; }
+.hk-kart-alt { color: #646970; font-size: 12px; margin-top: 2px; }
+.hk-k-yesil { border-left-color: #00a32a; }
+.hk-k-kirmizi { border-left-color: #d63638; }
+.hk-k-mor { border-left-color: #7e3bd0; }
+.hk-k-gri { border-left-color: #8c8f94; }
+.hk-tablo td, .hk-tablo th { vertical-align: top; }
+.hk-tablo .hk-sag { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hk-tablo .hk-islem { white-space: nowrap; }
+.hk-tablo tfoot th { font-weight: 600; }
+.hk-tablo.hk-dar { max-width: 860px; }
+.hk-pasif td { opacity: .6; }
+.hk-not { color: #646970; font-size: 12px; margin-top: 2px; max-width: 520px; }
+.hk-tur { color: #646970; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; margin-left: 4px; }
+.hk-rozet { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; line-height: 1.6; white-space: nowrap; }
+.hk-yesil { background: #edfaef; color: #00691b; }
+.hk-sari { background: #fcf9e8; color: #8a6100; }
+.hk-kirmizi { background: #fcf0f1; color: #b32d2e; }
+.hk-gri { background: #f0f0f1; color: #50575e; }
+.hk-mor { background: #f3ecfc; color: #5b21a6; }
+.hk-eksi { color: #b32d2e; }
+.hk-filtre { margin: 12px 0; }
+.hk-filtre select { vertical-align: middle; }
+.hk-bos { background: #fff; border: 1px solid #dcdcde; border-radius: 4px; padding: 28px; max-width: 720px; margin-top: 16px; }
+.hk-bos h2 { margin-top: 0; }
+.hk-notkutu { background: #fff; border-left: 4px solid #dba617; padding: 10px 14px; max-width: 860px; margin: 8px 0; }
+.hk-iletisim { color: #50575e; }
+.hk-mesaj { max-width: 720px; font-size: 14px; }
+.hk-mesaj-btn .button { margin-right: 4px; }
+.hk-sil { color: #b32d2e; }
+.hk-form input.hk-para { width: 110px; }
+@media (max-width: 782px) {
+	.hk-tablo { display: block; overflow-x: auto; }
+	.hk-kart { max-width: none; }
+}
