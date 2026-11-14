@@ -26,6 +26,8 @@ function hk_install() {
 		eposta varchar(190) NOT NULL DEFAULT '',
 		notlar text NULL,
 		kendi tinyint(1) NOT NULL DEFAULT 0,
+		yetkili varchar(190) NOT NULL DEFAULT '',
+		telefon2 varchar(40) NOT NULL DEFAULT '',
 		PRIMARY KEY  (id)
 	) $cs;"
 	);
@@ -43,6 +45,10 @@ function hk_install() {
 		aktif tinyint(1) NOT NULL DEFAULT 1,
 		kontrol tinyint(1) NOT NULL DEFAULT 0,
 		notlar text NULL,
+		bagli_id bigint(20) unsigned NULL,
+		pay smallint(4) NOT NULL DEFAULT 1,
+		musteri_oder tinyint(1) NOT NULL DEFAULT 0,
+		paket tinyint(1) NOT NULL DEFAULT 0,
 		PRIMARY KEY  (id),
 		KEY musteri_id (musteri_id),
 		KEY bitis (bitis)
@@ -64,6 +70,7 @@ function hk_install() {
 		son_hatirlatma date NULL,
 		aciklama text NULL,
 		kontrol tinyint(1) NOT NULL DEFAULT 0,
+		kategori varchar(20) NOT NULL DEFAULT 'yenileme',
 		PRIMARY KEY  (id),
 		KEY musteri_id (musteri_id),
 		KEY donem (donem),
@@ -71,7 +78,42 @@ function hk_install() {
 	) $cs;"
 	);
 
-	update_option( 'hk_db_ver', HK_VER );
+}
+
+/** Kurulu sürüm eklenti sürümünden farklıysa tablo yapısını ve veriyi günceller. */
+function hk_surum_kontrol() {
+	$eski = get_option( 'hk_db_ver' );
+	if ( HK_VER !== $eski ) {
+		hk_install();
+		hk_yukselt( $eski ? $eski : '0' );
+		update_option( 'hk_db_ver', HK_VER );
+	}
+}
+
+/** Sürüm yükseltmelerinde bir kez çalışan veri düzenlemeleri. Kayıt silmez, üzerine yazmaz. */
+function hk_yukselt( $eski ) {
+	global $wpdb;
+	if ( version_compare( $eski, '1.1.0', '<' ) ) {
+		// "ornek.com hosting" adlı hosting kayıtlarını aynı müşterinin "ornek.com" alan adına bağla.
+		$t = hk_t( 'hizmetler' );
+		foreach ( $wpdb->get_results( "SELECT id, musteri_id, ad, bitis FROM $t WHERE tur = 'hosting' AND bagli_id IS NULL" ) as $h ) {
+			if ( ! preg_match( '/^(\S+\.\S+)\s+hosting$/iu', $h->ad, $m ) ) {
+				continue;
+			}
+			$d = $wpdb->get_row( $wpdb->prepare( "SELECT id, bitis FROM $t WHERE tur = 'domain' AND musteri_id = %d AND ad = %s", $h->musteri_id, $m[1] ) );
+			if ( $d ) {
+				$g = array( 'bagli_id' => (int) $d->id );
+				if ( ! $h->bitis && $d->bitis ) {
+					$g['bitis'] = $d->bitis;
+				}
+				$wpdb->update( $t, $g, array( 'id' => $h->id ) );
+			}
+		}
+		// Zamanlanmış görev eklenti klasörü değişse de sürsün.
+		if ( ! wp_next_scheduled( 'hk_gunluk' ) ) {
+			wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'hk_gunluk' );
+		}
+	}
 }
 
 /* ---------- Sabitler ---------- */
@@ -82,6 +124,16 @@ function hk_turler() {
 		'hosting' => 'Hosting',
 		'ssl'     => 'SSL',
 		'diger'   => 'Diğer',
+	);
+}
+
+function hk_kategoriler() {
+	return array(
+		'yenileme'       => 'Yenileme',
+		'yeni_site'      => 'Yeni web sitesi',
+		'site_yenileme'  => 'Site yenileme',
+		'hosting_paketi' => 'Hosting paketi',
+		'diger'          => 'Diğer',
 	);
 }
 
@@ -105,11 +157,85 @@ function hk_ayar( $anahtar = null ) {
 		'gunler'    => '30,7,1',
 		'panel_gun' => 60,
 		'zam'       => 40,
+		'hosting_zam' => 40,
 		'haftalik'  => 1,
 		'sablon'    => hk_varsayilan_sablon(),
+		'yillar'    => array(),
 	);
 	$a = wp_parse_args( get_option( 'hk_ayarlar', array() ), $v );
 	return null === $anahtar ? $a : ( isset( $a[ $anahtar ] ) ? $a[ $anahtar ] : null );
+}
+
+/**
+ * Yıllık ortalama dolar kuru (TCMB) ve on iki aylık ortalamalara göre TÜFE değişimi (TÜİK, %).
+ * Ayarlar sayfasından değiştirilebilir. 2026 değerleri yıl bitmediği için geçicidir.
+ */
+function hk_yillar_varsayilan() {
+	return array(
+		2018 => array( 'kur' => 4.8284, 'tufe' => 16.33 ),
+		2019 => array( 'kur' => 5.6738, 'tufe' => 15.18 ),
+		2020 => array( 'kur' => 7.0086, 'tufe' => 12.28 ),
+		2021 => array( 'kur' => 8.8504, 'tufe' => 19.60 ),
+		2022 => array( 'kur' => 16.5489, 'tufe' => 72.31 ),
+		2023 => array( 'kur' => 23.7386, 'tufe' => 53.86 ),
+		2024 => array( 'kur' => 32.8059, 'tufe' => 58.51 ),
+		2025 => array( 'kur' => 39.4548, 'tufe' => 34.88 ),
+		2026 => array( 'kur' => 45.9587, 'tufe' => 31.00 ),
+	);
+}
+
+function hk_yillar() {
+	$y = hk_yillar_varsayilan();
+	foreach ( (array) hk_ayar( 'yillar' ) as $yil => $v ) {
+		$yil = (int) $yil;
+		if ( $yil < 2000 || ! is_array( $v ) ) {
+			continue;
+		}
+		$y[ $yil ] = array(
+			'kur'  => isset( $v['kur'] ) && $v['kur'] > 0 ? (float) $v['kur'] : ( isset( $y[ $yil ] ) ? $y[ $yil ]['kur'] : 0 ),
+			'tufe' => isset( $v['tufe'] ) && '' !== $v['tufe'] ? (float) $v['tufe'] : ( isset( $y[ $yil ] ) ? $y[ $yil ]['tufe'] : 0 ),
+		);
+	}
+	ksort( $y );
+	return $y;
+}
+
+/**
+ * Bir yılın TL tutarını istenen birime çevirir.
+ * $birim: 'tl' (olduğu gibi), 'usd' (o yılın ortalama kuruyla dolar), 'reel' (bugünkü fiyatlarla TL).
+ * Gerekli kur / TÜFE değeri yoksa null döner.
+ */
+function hk_cevir( $tutar, $yil, $birim ) {
+	if ( 'tl' === $birim ) {
+		return (float) $tutar;
+	}
+	static $y = null;
+	if ( null === $y ) {
+		$y = hk_yillar();
+	}
+	$yil = (int) $yil;
+	if ( 'usd' === $birim ) {
+		return ( isset( $y[ $yil ] ) && $y[ $yil ]['kur'] > 0 ) ? (float) $tutar / $y[ $yil ]['kur'] : null;
+	}
+	$hedef  = (int) current_time( 'Y' );
+	$carpan = 1.0;
+	for ( $i = $yil + 1; $i <= $hedef; $i++ ) {
+		if ( ! isset( $y[ $i ] ) ) {
+			return null;
+		}
+		$carpan *= 1 + $y[ $i ]['tufe'] / 100;
+	}
+	return (float) $tutar * $carpan;
+}
+
+function hk_para_birim( $n, $birim, $bos = '—' ) {
+	if ( null === $n ) {
+		return $bos;
+	}
+	if ( 'usd' === $birim ) {
+		return '$' . number_format( (float) $n, 0, ',', '.' );
+	}
+	return hk_para( round( (float) $n ), $bos );
 }
 
 /* ---------- Biçimlendirme ---------- */
@@ -269,6 +395,10 @@ function hk_hareketler( $f = array() ) {
 	if ( ! empty( $f['kontrol'] ) ) {
 		$w[] = 'x.kontrol = 1';
 	}
+	if ( ! empty( $f['kategori'] ) ) {
+		$w[] = 'x.kategori = %s';
+		$p[] = $f['kategori'];
+	}
 	if ( ! empty( $f['acik'] ) ) {
 		$w[] = "x.tur = 'gelir' AND x.durum <> 'odendi'";
 	}
@@ -422,82 +552,5 @@ function hk_mesaj_uret( $musteri, $hareket = null ) {
 			'{aciklama}'  => $aciklama,
 			'{tarih}'     => hk_tarih( hk_bugun() ),
 		)
-	);
-}
-
-/* ---------- Google Sheets verisini içe aktarma ---------- */
-
-/** data/seed.json içeriğini aktarır. Yalnızca hiç müşteri yokken çalışır. Dönüş: sayılar dizisi veya WP_Error. */
-function hk_ice_aktar() {
-	global $wpdb;
-	if ( (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . hk_t( 'musteriler' ) ) > 0 ) {
-		return new WP_Error( 'hk_dolu', 'Zaten kayıt var; içe aktarma yalnızca boş kurulumda yapılır.' );
-	}
-	$dosya = HK_DIR . 'data/seed.json';
-	$veri  = file_exists( $dosya ) ? json_decode( file_get_contents( $dosya ), true ) : null;
-	if ( ! is_array( $veri ) || empty( $veri['musteriler'] ) ) {
-		return new WP_Error( 'hk_seed', 'İçe aktarma dosyası okunamadı.' );
-	}
-
-	$mid = array();
-	foreach ( $veri['musteriler'] as $m ) {
-		$wpdb->insert(
-			hk_t( 'musteriler' ),
-			array(
-				'ad'      => $m['ad'],
-				'firma'   => $m['firma'],
-				'telefon' => $m['telefon'],
-				'eposta'  => $m['eposta'],
-				'notlar'  => $m['notlar'],
-				'kendi'   => (int) $m['kendi'],
-			)
-		);
-		$mid[ $m['anahtar'] ] = (int) $wpdb->insert_id;
-	}
-
-	$hid = array();
-	foreach ( $veri['hizmetler'] as $h ) {
-		$wpdb->insert(
-			hk_t( 'hizmetler' ),
-			array(
-				'musteri_id' => $mid[ $h['musteri'] ],
-				'tur'        => $h['tur'],
-				'ad'         => $h['ad'],
-				'firma'      => $h['firma'],
-				'bitis'      => $h['bitis'],
-				'maliyet'    => $h['maliyet'],
-				'fiyat'      => $h['fiyat'],
-				'aktif'      => (int) $h['aktif'],
-				'kontrol'    => (int) $h['kontrol'],
-				'notlar'     => $h['notlar'],
-			)
-		);
-		$hid[ $h['musteri'] . '|' . $h['ad'] ] = (int) $wpdb->insert_id;
-	}
-
-	foreach ( $veri['hareketler'] as $x ) {
-		$k = $x['musteri'] . '|' . $x['hizmet'];
-		$wpdb->insert(
-			hk_t( 'hareketler' ),
-			array(
-				'musteri_id'   => $mid[ $x['musteri'] ],
-				'hizmet_id'    => ( $x['hizmet'] && isset( $hid[ $k ] ) ) ? $hid[ $k ] : null,
-				'tur'          => $x['tur'],
-				'tutar'        => $x['tutar'],
-				'donem'        => (int) $x['donem'],
-				'tarih'        => $x['tarih'],
-				'durum'        => $x['durum'],
-				'odeme_tarihi' => $x['odeme_tarihi'],
-				'hatirlatma'   => (int) $x['hatirlatma'],
-				'aciklama'     => $x['aciklama'],
-				'kontrol'      => (int) $x['kontrol'],
-			)
-		);
-	}
-
-	return array(
-		'musteri' => count( $veri['musteriler'] ),
-		'hizmet'  => count( $veri['hizmetler'] ),
-		'hareket' => count( $veri['hareketler'] ),
 	);
 }

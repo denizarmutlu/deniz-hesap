@@ -41,7 +41,7 @@ function hk_ozet_eposta( $zorla = false ) {
 
 	$td = 'style="padding:6px 10px;border-bottom:1px solid #e5e5e5;text-align:left"';
 	$h  = '<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#1d2327">';
-	$h .= '<h2 style="margin:0 0 12px">Hesap Kitap – ' . esc_html( hk_tarih( hk_bugun() ) ) . '</h2>';
+	$h .= '<h2 style="margin:0 0 12px">Deniz Hesap – ' . esc_html( hk_tarih( hk_bugun() ) ) . '</h2>';
 
 	$h .= '<h3 style="margin:18px 0 6px">Yaklaşan ve süresi geçmiş yenilemeler</h3>';
 	if ( $yaklasan ) {
@@ -77,9 +77,9 @@ function hk_ozet_eposta( $zorla = false ) {
 	$h .= '<p style="margin-top:18px"><a href="' . esc_url( admin_url( 'admin.php?page=hk-panel' ) ) . '">Paneli aç</a></p></div>';
 
 	if ( $tetik ) {
-		$konu = '[Hesap Kitap] Yenileme yaklaşıyor: ' . implode( ', ', array_slice( $tetik, 0, 3 ) ) . ( count( $tetik ) > 3 ? ' +' . ( count( $tetik ) - 3 ) : '' );
+		$konu = '[Deniz Hesap] Yenileme yaklaşıyor: ' . implode( ', ', array_slice( $tetik, 0, 3 ) ) . ( count( $tetik ) > 3 ? ' +' . ( count( $tetik ) - 3 ) : '' );
 	} else {
-		$konu = '[Hesap Kitap] Özet: ' . count( $yaklasan ) . ' yenileme, ' . count( $alacaklar ) . ' bekleyen alacak';
+		$konu = '[Deniz Hesap] Özet: ' . count( $yaklasan ) . ' yenileme, ' . count( $alacaklar ) . ' bekleyen alacak';
 	}
 
 	return (bool) wp_mail( $a['eposta'], $konu, $h, array( 'Content-Type: text/html; charset=UTF-8' ) );

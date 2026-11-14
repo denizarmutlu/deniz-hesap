@@ -39,3 +39,23 @@ h2 .hk-alt { margin-left: 6px; }
 	.hk-tablo { display: block; overflow-x: auto; }
 	.hk-kart { max-width: none; }
 }
+
+/* 1.1 */
+.hk-inline { display: inline; margin: 0; }
+.hk-inline .button-link.hk-sil { color: #b32d2e; text-decoration: underline; cursor: pointer; }
+.hk-grafik { display: flex; align-items: flex-end; gap: 18px; height: 180px; padding: 12px 16px 0; background: #fff; border: 1px solid #dcdcde; border-radius: 4px; max-width: 860px; box-sizing: border-box; }
+.hk-g-yil { flex: 1 1 0; display: flex; flex-direction: column; height: 100%; min-width: 34px; max-width: 90px; }
+.hk-g-cubuklar { flex: 1; display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid #c3c4c7; }
+.hk-g-c { flex: 1; min-height: 1px; border-radius: 3px 3px 0 0; position: relative; }
+.hk-g-gelir { background: #2271b1; }
+.hk-g-gider { background: #a7aaad; }
+.hk-g-tahmini { background: repeating-linear-gradient(45deg, #dba617, #dba617 4px, #f0c33c 4px, #f0c33c 8px); }
+.hk-g-c .hk-g-tahmini { position: absolute; top: 0; left: 0; right: 0; border-radius: 3px 3px 0 0; }
+.hk-g-etiket { text-align: center; font-size: 12px; color: #50575e; padding: 4px 0 8px; }
+.hk-g-aciklama { font-size: 12px; color: #50575e; margin: 6px 0 14px; }
+.hk-g-kutu { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: baseline; }
+.hk-toplu input[type="text"].regular-text { width: 100%; min-width: 160px; }
+.hk-toplu td { vertical-align: middle; }
+.hk-tablo.hk-yillar { max-width: 460px; }
+.hk-gunluk { background: #fff; border: 1px solid #dcdcde; border-radius: 4px; padding: 14px 18px; max-width: 860px; white-space: pre-wrap; font-size: 13px; }
+.hk-wrap .notice.inline { margin: 10px 0; max-width: 860px; }

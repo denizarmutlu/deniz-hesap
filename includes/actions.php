@@ -7,7 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-foreach ( array( 'musteri_kaydet', 'musteri_sil', 'hizmet_kaydet', 'hizmet_sil', 'hizmet_yenile', 'hizmet_hizli', 'hareket_kaydet', 'hareket_sil', 'hareket_hizli', 'ayar_kaydet', 'ice_aktar', 'test_eposta', 'csv' ) as $hk_islem ) {
+foreach ( array( 'musteri_kaydet', 'musteri_sil', 'hizmet_kaydet', 'hizmet_sil', 'hizmet_yenile', 'hizmet_hizli', 'hareket_kaydet', 'hareket_sil', 'hareket_hizli', 'hareket_toplu', 'ayar_kaydet', 'test_eposta', 'csv' ) as $hk_islem ) {
 	add_action( 'admin_post_hk_' . $hk_islem, 'hk_do_' . $hk_islem );
 }
 unset( $hk_islem );
@@ -18,6 +18,26 @@ function hk_guard( $islem ) {
 		wp_die( 'Bu işlem için yetkiniz yok.', 403 );
 	}
 	check_admin_referer( 'hk_' . $islem );
+	// Veri değiştiren işlemler yalnızca form gönderimiyle (POST) çalışır.
+	if ( 'csv' !== $islem && ( ! isset( $_SERVER['REQUEST_METHOD'] ) || 'POST' !== $_SERVER['REQUEST_METHOD'] ) ) {
+		wp_die( 'Geçersiz istek.', 405 );
+	}
+}
+
+/**
+ * Tek düğmeli küçük form: hızlı işlemler bağlantı yerine POST ile gönderilir.
+ * $onay verilirse tıklamada onay sorulur.
+ */
+function hk_dugme( $islem, $args, $etiket, $sinif = 'button button-small', $onay = '' ) {
+	if ( empty( $args['geri'] ) ) {
+		$args['geri'] = hk_su_an();
+	}
+	$h = '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="hk-inline"' . ( $onay ? ' onsubmit="return confirm(\'' . esc_js( $onay ) . '\')"' : '' ) . '>';
+	$h .= '<input type="hidden" name="action" value="hk_' . esc_attr( $islem ) . '">' . wp_nonce_field( 'hk_' . $islem, '_wpnonce', false, false );
+	foreach ( $args as $k => $v ) {
+		$h .= '<input type="hidden" name="' . esc_attr( $k ) . '" value="' . esc_attr( $v ) . '">';
+	}
+	return $h . '<button type="submit" class="' . esc_attr( $sinif ) . '">' . esc_html( $etiket ) . '</button></form>';
 }
 
 function hk_url( $sayfa, $args = array() ) {
@@ -69,6 +89,8 @@ function hk_do_musteri_kaydet() {
 		'eposta'  => sanitize_email( hk_post( 'eposta' ) ),
 		'notlar'  => sanitize_textarea_field( hk_post( 'notlar' ) ),
 		'kendi'   => hk_post( 'kendi' ) ? 1 : 0,
+		'yetkili'  => sanitize_text_field( hk_post( 'yetkili' ) ),
+		'telefon2' => sanitize_text_field( hk_post( 'telefon2' ) ),
 	);
 	if ( '' === $d['ad'] ) {
 		hk_geri( 'ad_gerekli', hk_url( 'musteriler' ) );
@@ -95,7 +117,7 @@ function hk_do_musteri_kaydet() {
 function hk_do_musteri_sil() {
 	hk_guard( 'musteri_sil' );
 	global $wpdb;
-	$id = (int) ( isset( $_GET['id'] ) ? $_GET['id'] : 0 );
+	$id = (int) hk_post( 'id', 0 );
 	$n  = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . hk_t( 'hizmetler' ) . ' WHERE musteri_id = %d', $id ) )
 		+ (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . hk_t( 'hareketler' ) . ' WHERE musteri_id = %d', $id ) );
 	if ( $n > 0 ) {
@@ -125,7 +147,24 @@ function hk_do_hizmet_kaydet() {
 		'aktif'      => hk_post( 'aktif' ) ? 1 : 0,
 		'kontrol'    => hk_post( 'kontrol' ) ? 1 : 0,
 		'notlar'     => sanitize_textarea_field( hk_post( 'notlar' ) ),
+		'bagli_id'     => (int) hk_post( 'bagli_id', 0 ) ? (int) hk_post( 'bagli_id', 0 ) : null,
+		'pay'          => max( 1, min( 99, (int) hk_post( 'pay', 1 ) ) ),
+		'musteri_oder' => hk_post( 'musteri_oder' ) ? 1 : 0,
+		'paket'        => hk_post( 'paket' ) ? 1 : 0,
 	);
+	if ( 'hosting' !== $d['tur'] ) {
+		$d['bagli_id']     = null;
+		$d['pay']          = 1;
+		$d['musteri_oder'] = 0;
+		$d['paket']        = 0;
+	}
+	// Alan adına bağlı hostingin tarihi boş bırakıldıysa alan adının tarihini al.
+	if ( $d['bagli_id'] && ! $d['bitis'] ) {
+		$bagli = hk_hizmet( $d['bagli_id'] );
+		if ( $bagli && $bagli->bitis ) {
+			$d['bitis'] = $bagli->bitis;
+		}
+	}
 	if ( '' === $d['ad'] || ! hk_musteri( $d['musteri_id'] ) ) {
 		hk_geri( 'eksik', hk_url( 'hizmetler' ) );
 	}
@@ -140,7 +179,8 @@ function hk_do_hizmet_kaydet() {
 function hk_do_hizmet_sil() {
 	hk_guard( 'hizmet_sil' );
 	global $wpdb;
-	$id = (int) ( isset( $_GET['id'] ) ? $_GET['id'] : 0 );
+	$id = (int) hk_post( 'id', 0 );
+	$wpdb->query( $wpdb->prepare( 'UPDATE ' . hk_t( 'hizmetler' ) . ' SET bagli_id = NULL WHERE bagli_id = %d', $id ) );
 	// Hareket kayıtları silinmez; yalnızca hizmet bağlantısı kaldırılır.
 	$wpdb->query( $wpdb->prepare( 'UPDATE ' . hk_t( 'hareketler' ) . ' SET hizmet_id = NULL WHERE hizmet_id = %d', $id ) );
 	$wpdb->delete( hk_t( 'hizmetler' ), array( 'id' => $id ) );
@@ -151,8 +191,8 @@ function hk_do_hizmet_sil() {
 function hk_do_hizmet_hizli() {
 	hk_guard( 'hizmet_hizli' );
 	global $wpdb;
-	$id = (int) ( isset( $_GET['id'] ) ? $_GET['id'] : 0 );
-	$ne = isset( $_GET['ne'] ) ? sanitize_key( $_GET['ne'] ) : '';
+	$id = (int) hk_post( 'id', 0 );
+	$ne = sanitize_key( hk_post( 'ne' ) );
 	$h  = hk_hizmet( $id );
 	if ( $h ) {
 		if ( 'ilerlet' === $ne && $h->bitis ) {
@@ -169,11 +209,18 @@ function hk_do_hizmet_hizli() {
 				),
 				array( 'id' => $id )
 			);
+			hk_bagli_tarih( $id, $yeni );
 		} elseif ( 'onayla' === $ne ) {
 			$wpdb->update( hk_t( 'hizmetler' ), array( 'kontrol' => 0 ), array( 'id' => $id ) );
 		}
 	}
 	hk_geri( 'guncellendi', hk_url( 'kontrol' ) );
+}
+
+/** Bir alan adının tarihi değişince ona bağlı hosting kayıtlarının tarihini de aynı güne taşır. */
+function hk_bagli_tarih( $alan_adi_id, $yeni ) {
+	global $wpdb;
+	$wpdb->query( $wpdb->prepare( 'UPDATE ' . hk_t( 'hizmetler' ) . ' SET bitis = %s WHERE bagli_id = %d', $yeni, $alan_adi_id ) );
 }
 
 /** Yenileme: bitişi ilerletir; isteğe bağlı gider ve alacak kaydı açar. */
@@ -214,6 +261,7 @@ function hk_do_hizmet_yenile() {
 					'durum'        => 'odendi',
 					'odeme_tarihi' => $tarih,
 					'aciklama'     => $etiket,
+					'kategori'     => $h->paket ? 'hosting_paketi' : 'yenileme',
 				)
 			);
 			$guncelle['maliyet'] = $tutar;
@@ -237,6 +285,7 @@ function hk_do_hizmet_yenile() {
 					'durum'        => $durum,
 					'odeme_tarihi' => 'odendi' === $durum ? $bugun : null,
 					'aciklama'     => $etiket,
+					'kategori'     => 'yenileme',
 				)
 			);
 			$guncelle['fiyat'] = $tutar;
@@ -244,6 +293,9 @@ function hk_do_hizmet_yenile() {
 	}
 
 	$wpdb->update( hk_t( 'hizmetler' ), $guncelle, array( 'id' => $id ) );
+	if ( 'domain' === $h->tur ) {
+		hk_bagli_tarih( $id, $yeni );
+	}
 	hk_geri( 'yenilendi', hk_url( 'hizmetler' ) );
 }
 
@@ -284,9 +336,13 @@ function hk_do_hareket_kaydet() {
 		'hatirlatma'   => max( 0, (int) hk_post( 'hatirlatma', 0 ) ),
 		'aciklama'     => sanitize_textarea_field( hk_post( 'aciklama' ) ),
 		'kontrol'      => hk_post( 'kontrol' ) ? 1 : 0,
+		'kategori'     => array_key_exists( hk_post( 'kategori' ), hk_kategoriler() ) ? hk_post( 'kategori' ) : 'yenileme',
 	);
 	if ( null === $tutar || ! hk_musteri( $d['musteri_id'] ) ) {
 		hk_geri( 'eksik', hk_url( 'hareketler' ) );
+	}
+	if ( 'gider' === $tur && 'hosting_paketi' === $d['kategori'] && ! $d['hizmet_id'] ) {
+		$d['hizmet_id'] = hk_paket_bul( $d['musteri_id'] );
 	}
 	if ( $id ) {
 		$wpdb->update( hk_t( 'hareketler' ), $d, array( 'id' => $id ) );
@@ -299,7 +355,7 @@ function hk_do_hareket_kaydet() {
 function hk_do_hareket_sil() {
 	hk_guard( 'hareket_sil' );
 	global $wpdb;
-	$wpdb->delete( hk_t( 'hareketler' ), array( 'id' => (int) ( isset( $_GET['id'] ) ? $_GET['id'] : 0 ) ) );
+	$wpdb->delete( hk_t( 'hareketler' ), array( 'id' => (int) hk_post( 'id', 0 ) ) );
 	hk_geri( 'silindi', hk_url( 'hareketler' ) );
 }
 
@@ -307,8 +363,8 @@ function hk_do_hareket_sil() {
 function hk_do_hareket_hizli() {
 	hk_guard( 'hareket_hizli' );
 	global $wpdb;
-	$id = (int) ( isset( $_GET['id'] ) ? $_GET['id'] : 0 );
-	$ne = isset( $_GET['ne'] ) ? sanitize_key( $_GET['ne'] ) : '';
+	$id = (int) hk_post( 'id', 0 );
+	$ne = sanitize_key( hk_post( 'ne' ) );
 	$x  = hk_hareket( $id );
 	if ( $x ) {
 		$bugun = hk_bugun();
@@ -342,6 +398,65 @@ function hk_do_hareket_hizli() {
 	hk_geri( 'guncellendi', hk_url( 'hareketler' ) );
 }
 
+/**
+ * "Hosting paketi" kategorisindeki bir gider hizmete bağlanmadıysa ve o hesabın tek bir paketi varsa
+ * gideri o pakete bağlar; böylece maliyet dağıtımına girer.
+ */
+function hk_paket_bul( $musteri_id ) {
+	global $wpdb;
+	$ids = $wpdb->get_col( $wpdb->prepare( 'SELECT id FROM ' . hk_t( 'hizmetler' ) . ' WHERE paket = 1 AND musteri_id = %d', $musteri_id ) );
+	return 1 === count( $ids ) ? (int) $ids[0] : null;
+}
+
+/** Toplu giriş: aynı ekrandan birden çok hareket ekler. Tutarı boş satırlar atlanır. */
+function hk_do_hareket_toplu() {
+	hk_guard( 'hareket_toplu' );
+	global $wpdb;
+	$satirlar = isset( $_POST['s'] ) && is_array( $_POST['s'] ) ? wp_unslash( $_POST['s'] ) : array();
+	$kat      = hk_kategoriler();
+	$n        = 0;
+	foreach ( $satirlar as $s ) {
+		$tutar = hk_para_oku( isset( $s['tutar'] ) ? $s['tutar'] : '' );
+		$mid   = isset( $s['musteri_id'] ) ? (int) $s['musteri_id'] : 0;
+		if ( null === $tutar || ! $mid || ! hk_musteri( $mid ) ) {
+			continue;
+		}
+		$tarih = hk_tarih_oku( isset( $s['tarih'] ) ? $s['tarih'] : '' );
+		$donem = isset( $s['donem'] ) ? (int) $s['donem'] : 0;
+		if ( $donem < 2000 || $donem > 2100 ) {
+			$donem = (int) substr( $tarih ? $tarih : hk_bugun(), 0, 4 );
+		}
+		$tur = ( isset( $s['tur'] ) && 'gider' === $s['tur'] ) ? 'gider' : 'gelir';
+		$wpdb->insert(
+			hk_t( 'hareketler' ),
+			array(
+				'musteri_id'   => $mid,
+				'hizmet_id'    => ( 'gider' === $tur && isset( $s['kategori'] ) && 'hosting_paketi' === $s['kategori'] ) ? hk_paket_bul( $mid ) : null,
+				'tur'          => $tur,
+				'tutar'        => $tutar,
+				'donem'        => $donem,
+				'tarih'        => $tarih,
+				'durum'        => 'odendi',
+				'odeme_tarihi' => $tarih,
+				'aciklama'     => sanitize_text_field( isset( $s['aciklama'] ) ? $s['aciklama'] : '' ),
+				'kategori'     => ( isset( $s['kategori'] ) && isset( $kat[ $s['kategori'] ] ) ) ? $s['kategori'] : 'yenileme',
+			)
+		);
+		$n++;
+	}
+	wp_safe_redirect(
+		hk_url(
+			'hareketler',
+			array(
+				'islem'  => 'toplu',
+				'hk_msg' => $n ? 'toplu_ok' : 'toplu_bos',
+				'n'      => $n,
+			)
+		)
+	);
+	exit;
+}
+
 /* ---------- Ayarlar / araçlar ---------- */
 
 function hk_do_ayar_kaydet() {
@@ -350,6 +465,24 @@ function hk_do_ayar_kaydet() {
 	rsort( $gunler );
 	$eposta = sanitize_email( hk_post( 'eposta' ) );
 	$sablon = sanitize_textarea_field( hk_post( 'sablon' ) );
+	$yillar = array();
+	foreach ( (array) hk_post( 'yillar', array() ) as $yil => $v ) {
+		$yil = (int) $yil;
+		if ( ! $yil && is_array( $v ) && ! empty( $v['yil'] ) ) {
+			$yil = (int) $v['yil'];
+		}
+		if ( $yil < 2000 || $yil > 2100 || ! is_array( $v ) ) {
+			continue;
+		}
+		$kur  = isset( $v['kur'] ) ? (float) str_replace( ',', '.', $v['kur'] ) : 0;
+		$tufe = isset( $v['tufe'] ) ? (float) str_replace( ',', '.', $v['tufe'] ) : 0;
+		if ( $kur > 0 ) {
+			$yillar[ $yil ] = array(
+				'kur'  => $kur,
+				'tufe' => $tufe,
+			);
+		}
+	}
 	update_option(
 		'hk_ayarlar',
 		array(
@@ -357,18 +490,13 @@ function hk_do_ayar_kaydet() {
 			'gunler'    => $gunler ? implode( ',', $gunler ) : '30,7,1',
 			'panel_gun' => max( 7, min( 365, absint( hk_post( 'panel_gun', 60 ) ) ) ),
 			'zam'       => max( 0, min( 500, (float) str_replace( ',', '.', hk_post( 'zam', 0 ) ) ) ),
+			'hosting_zam' => max( 0, min( 500, (float) str_replace( ',', '.', hk_post( 'hosting_zam', 0 ) ) ) ),
+			'yillar'    => $yillar,
 			'haftalik'  => hk_post( 'haftalik' ) ? 1 : 0,
 			'sablon'    => '' !== trim( $sablon ) ? $sablon : hk_varsayilan_sablon(),
 		)
 	);
 	hk_geri( 'kaydedildi', hk_url( 'ayarlar' ) );
-}
-
-function hk_do_ice_aktar() {
-	hk_guard( 'ice_aktar' );
-	$s = hk_ice_aktar();
-	wp_safe_redirect( hk_url( is_wp_error( $s ) ? 'ayarlar' : 'kontrol', array( 'hk_msg' => is_wp_error( $s ) ? 'aktarim_hata' : 'aktarildi' ) ) );
-	exit;
 }
 
 function hk_do_test_eposta() {
@@ -380,32 +508,39 @@ function hk_do_test_eposta() {
 function hk_do_csv() {
 	hk_guard( 'csv' );
 	$f = array();
-	foreach ( array( 'musteri_id', 'tur', 'durum', 'donem' ) as $k ) {
+	foreach ( array( 'musteri_id', 'tur', 'durum', 'donem', 'kategori' ) as $k ) {
 		if ( ! empty( $_GET[ $k ] ) ) {
 			$f[ $k ] = sanitize_text_field( wp_unslash( $_GET[ $k ] ) );
 		}
 	}
 	$durumlar = hk_durumlar();
+	$kat      = hk_kategoriler();
+	// Excel'de formül olarak çalışmasın diye = + - @ ile başlayan metinlerin başına tek tırnak koy.
+	$guvenli = function ( $v ) {
+		$v = (string) $v;
+		return ( '' !== $v && false !== strpos( '=+-@', $v[0] ) ) ? "'" . $v : $v;
+	};
 	nocache_headers();
 	header( 'Content-Type: text/csv; charset=UTF-8' );
-	header( 'Content-Disposition: attachment; filename="hesap-kitap-' . hk_bugun() . '.csv"' );
+	header( 'Content-Disposition: attachment; filename="deniz-hesap-' . hk_bugun() . '.csv"' );
 	$o = fopen( 'php://output', 'w' );
 	fwrite( $o, "\xEF\xBB\xBF" );
-	fputcsv( $o, array( 'Dönem', 'Tarih', 'Müşteri', 'Hizmet', 'Tür', 'Tutar', 'Durum', 'Ödeme tarihi', 'Hatırlatma', 'Açıklama' ), ';', '"', '\\' );
+	fputcsv( $o, array( 'Dönem', 'Tarih', 'Müşteri', 'Hizmet', 'Tür', 'Kategori', 'Tutar', 'Durum', 'Ödeme tarihi', 'Hatırlatma', 'Açıklama' ), ';', '"', '\\' );
 	foreach ( hk_hareketler( $f ) as $x ) {
 		fputcsv(
 			$o,
 			array(
 				$x->donem,
 				hk_tarih( $x->tarih, '' ),
-				$x->musteri_ad,
-				(string) $x->hizmet_ad,
+				$guvenli( $x->musteri_ad ),
+				$guvenli( $x->hizmet_ad ),
 				'gider' === $x->tur ? 'Gider' : 'Gelir',
+				isset( $kat[ $x->kategori ] ) ? $kat[ $x->kategori ] : $x->kategori,
 				number_format( (float) $x->tutar, 2, ',', '' ),
 				isset( $durumlar[ $x->durum ] ) ? $durumlar[ $x->durum ] : $x->durum,
 				hk_tarih( $x->odeme_tarihi, '' ),
 				$x->hatirlatma,
-				(string) $x->aciklama,
+				$guvenli( $x->aciklama ),
 			),
 			';',
 			'"',

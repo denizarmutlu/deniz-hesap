@@ -13,11 +13,12 @@ add_action( 'admin_enqueue_scripts', 'hk_assets' );
 function hk_menu() {
 	$n      = hk_kontrol_sayisi();
 	$balon  = $n ? ' <span class="awaiting-mod">' . (int) $n . '</span>' : '';
-	add_menu_page( 'Hesap Kitap', 'Hesap Kitap', HK_CAP, 'hk-panel', 'hk_sayfa_panel', 'dashicons-money-alt', 26 );
+	add_menu_page( HK_AD, HK_AD, HK_CAP, 'hk-panel', 'hk_sayfa_panel', 'dashicons-money-alt', 26 );
 	add_submenu_page( 'hk-panel', 'Panel', 'Panel', HK_CAP, 'hk-panel', 'hk_sayfa_panel' );
 	add_submenu_page( 'hk-panel', 'Müşteriler', 'Müşteriler', HK_CAP, 'hk-musteriler', 'hk_sayfa_musteriler' );
 	add_submenu_page( 'hk-panel', 'Hizmetler', 'Hizmetler', HK_CAP, 'hk-hizmetler', 'hk_sayfa_hizmetler' );
 	add_submenu_page( 'hk-panel', 'Hareketler', 'Hareketler', HK_CAP, 'hk-hareketler', 'hk_sayfa_hareketler' );
+	add_submenu_page( 'hk-panel', 'Raporlar', 'Raporlar', HK_CAP, 'hk-raporlar', 'hk_sayfa_raporlar' );
 	add_submenu_page( 'hk-panel', 'Kontrol edilecekler', 'Kontrol' . $balon, HK_CAP, 'hk-kontrol', 'hk_sayfa_kontrol' );
 	add_submenu_page( 'hk-panel', 'Ayarlar', 'Ayarlar', HK_CAP, 'hk-ayarlar', 'hk_sayfa_ayarlar' );
 }
@@ -44,10 +45,10 @@ function hk_bildirim() {
 		'silindi'      => array( 'success', 'Silindi.' ),
 		'guncellendi'  => array( 'success', 'Güncellendi.' ),
 		'yenilendi'    => array( 'success', 'Hizmet yenilendi.' ),
-		'aktarildi'    => array( 'success', 'Tablo verisi içe aktarıldı. Aşağıdaki kayıtlar tabloda belirsiz olduğu için işaretlendi; lütfen gözden geçirin.' ),
+		'toplu_ok'     => array( 'success', (int) hk_get( 'n', 0 ) . ' kayıt eklendi.' ),
+		'toplu_bos'    => array( 'error', 'Kayıt eklenmedi: müşterisi ve tutarı dolu satır yok.' ),
 		'eposta_ok'    => array( 'success', 'Özet e-postası gönderildi.' ),
 		'eposta_hata'  => array( 'error', 'E-posta gönderilemedi. Sunucunun e-posta ayarlarını (SMTP) kontrol edin.' ),
-		'aktarim_hata' => array( 'error', 'İçe aktarma yapılamadı: zaten kayıt var veya veri dosyası okunamadı.' ),
 		'musteri_dolu' => array( 'error', 'Bu müşterinin hizmet veya hareket kaydı var; önce onları silin ya da başka müşteriye taşıyın.' ),
 		'ad_gerekli'   => array( 'error', 'Ad alanı boş bırakılamaz.' ),
 		'eksik'        => array( 'error', 'Eksik veya geçersiz bilgi: müşteri, ad ve tutar alanlarını kontrol edin.' ),
@@ -112,6 +113,19 @@ function hk_kontrol_isareti( $kayit ) {
 	return $kayit->kontrol ? ' <span class="hk-rozet hk-mor" title="Tablodan aktarılırken belirsiz kaldı; kontrol edin">kontrol</span>' : '';
 }
 
+function hk_kategori_adi( $k ) {
+	$kat = hk_kategoriler();
+	return isset( $kat[ $k ] ) ? $kat[ $k ] : $k;
+}
+
+function hk_kategori_select( $secili = 'yenileme', $ad = 'kategori', $bos = '' ) {
+	$h = '<select name="' . esc_attr( $ad ) . '">' . ( $bos ? '<option value="">' . esc_html( $bos ) . '</option>' : '' );
+	foreach ( hk_kategoriler() as $k => $e ) {
+		$h .= sprintf( '<option value="%s"%s>%s</option>', esc_attr( $k ), selected( $secili, $k, false ), esc_html( $e ) );
+	}
+	return $h . '</select>';
+}
+
 function hk_kart( $etiket, $deger, $sinif = '', $alt = '' ) {
 	printf(
 		'<div class="hk-kart %s"><div class="hk-kart-etiket">%s</div><div class="hk-kart-deger">%s</div>%s</div>',
@@ -149,6 +163,22 @@ function hk_hizmet_tablosu( $hizmetler, $musteri_goster = true, $bos = 'Kayıt y
 	foreach ( $hizmetler as $h ) {
 		echo '<tr class="' . ( $h->aktif ? '' : 'hk-pasif' ) . '">';
 		echo '<td><strong>' . esc_html( $h->ad ) . '</strong> <span class="hk-tur">' . esc_html( isset( $turler[ $h->tur ] ) ? $turler[ $h->tur ] : $h->tur ) . '</span>' . ( $h->aktif ? '' : ' <span class="hk-rozet hk-gri">pasif</span>' ) . hk_kontrol_isareti( $h );
+		$ek = array();
+		if ( $h->paket ) {
+			$ek[] = 'hosting paketi – maliyeti müşterilere dağıtılır';
+		} elseif ( 'hosting' === $h->tur ) {
+			if ( $h->musteri_oder ) {
+				$ek[] = 'ücretini müşteri ödüyor';
+			} elseif ( $h->pay > 1 ) {
+				$ek[] = (int) $h->pay . ' pay';
+			}
+			if ( $h->bagli_id ) {
+				$ek[] = 'tarihi alan adına bağlı';
+			}
+		}
+		if ( $ek ) {
+			echo '<div class="hk-not">' . esc_html( implode( ' · ', $ek ) ) . '</div>';
+		}
 		if ( $h->notlar ) {
 			echo '<div class="hk-not">' . esc_html( $h->notlar ) . '</div>';
 		}
@@ -171,7 +201,12 @@ function hk_hizmet_tablosu( $hizmetler, $musteri_goster = true, $bos = 'Kayıt y
 		echo '<td>' . esc_html( $h->firma ? $h->firma : '—' ) . '</td>';
 		echo '<td>' . esc_html( hk_tarih( $h->bitis ) ) . '</td>';
 		echo '<td>' . ( $h->aktif ? hk_kalan_rozet( $h->bitis ) : '—' ) . '</td>';
-		echo '<td class="hk-sag">' . esc_html( hk_para( $h->maliyet ) ) . '</td>';
+		$pb = ( 'hosting' === $h->tur && ! $h->paket && ! $h->musteri_oder && ! $h->kendi && null === $h->maliyet ) ? hk_pay_basi( $h->firma ) : null;
+		if ( $pb ) {
+			echo '<td class="hk-sag" title="Hosting paketinden bu kayda düşen pay' . ( $pb['tahmini'] ? ' (bu yılın ödemesi yapılmadığı için tahmini)' : '' ) . '">~ ' . esc_html( hk_para( round( $pb['pay_basi'] * max( 1, (int) $h->pay ) ) ) ) . '</td>';
+		} else {
+			echo '<td class="hk-sag">' . esc_html( hk_para( $h->maliyet ) ) . '</td>';
+		}
 		echo '<td class="hk-sag">' . esc_html( $h->kendi ? '—' : hk_para( $h->fiyat ) ) . '</td>';
 		echo '<td class="hk-islem">';
 		printf(
@@ -238,24 +273,21 @@ function hk_hareket_tablosu( $hareketler, $musteri_goster = true, $bos = 'Kayıt
 				esc_html( $x->musteri_ad )
 			);
 		}
-		echo '<td>' . ( $x->hizmet_ad ? '<strong>' . esc_html( $x->hizmet_ad ) . '</strong> ' : '' ) . hk_kontrol_isareti( $x ) . '<div class="hk-not">' . esc_html( (string) $x->aciklama ) . '</div></td>';
+		echo '<td>' . ( $x->hizmet_ad ? '<strong>' . esc_html( $x->hizmet_ad ) . '</strong> ' : '' ) . ( 'yenileme' !== $x->kategori ? '<span class="hk-tur">' . esc_html( hk_kategori_adi( $x->kategori ) ) . '</span> ' : '' ) . hk_kontrol_isareti( $x ) . '<div class="hk-not">' . esc_html( (string) $x->aciklama ) . '</div></td>';
 		echo '<td class="hk-sag">' . ( 'gelir' === $x->tur ? esc_html( hk_para( $x->tutar ) ) : '' ) . '</td>';
 		echo '<td class="hk-sag">' . ( 'gider' === $x->tur ? esc_html( hk_para( $x->tutar ) ) : '' ) . '</td>';
 		echo '<td>' . hk_durum_rozet( $x ) . '</td>';
 		echo '<td class="hk-islem">';
 		if ( $acik ) {
-			printf(
-				'<a class="button button-small button-primary" href="%s">Ödendi</a> ',
-				esc_url(
-					hk_islem_url(
-						'hareket_hizli',
-						array(
-							'id' => $x->id,
-							'ne' => 'odendi',
-						)
-					)
-				)
-			);
+			echo hk_dugme(
+				'hareket_hizli',
+				array(
+					'id' => $x->id,
+					'ne' => 'odendi',
+				),
+				'Ödendi',
+				'button button-small button-primary'
+			) . ' ';
 			printf(
 				'<a class="button button-small" href="%s">Mesaj</a> ',
 				esc_url(
@@ -296,7 +328,7 @@ function hk_sayfa_panel() {
 	$panel_gun = (int) hk_ayar( 'panel_gun' );
 
 	hk_baslik(
-		'Hesap Kitap',
+		HK_AD,
 		array(
 			'Hareket ekle' => hk_url( 'hareketler', array( 'islem' => 'yeni' ) ),
 			'Hizmet ekle'  => hk_url( 'hizmetler', array( 'islem' => 'yeni' ) ),
@@ -304,8 +336,8 @@ function hk_sayfa_panel() {
 	);
 
 	if ( ! $musteri ) {
-		echo '<div class="hk-bos"><h2>Henüz kayıt yok</h2><p>Google Sheets tablonuzdaki 2024-2025 ve 2026 verileri eklentiyle birlikte geliyor. Tek tıkla içe aktarabilir veya sıfırdan başlayabilirsiniz.</p>';
-		printf( '<p><a class="button button-primary button-hero" href="%s">Tablo verisini içe aktar</a> <a class="button button-hero" href="%s">Sıfırdan müşteri ekle</a></p></div></div>', esc_url( hk_islem_url( 'ice_aktar' ) ), esc_url( hk_url( 'musteriler', array( 'islem' => 'yeni' ) ) ) );
+		echo '<div class="hk-bos"><h2>Henüz kayıt yok</h2><p>Önce bir müşteri ekleyin; ardından alan adı ve hosting kayıtlarını girebilirsiniz.</p>';
+		printf( '<p><a class="button button-primary button-hero" href="%s">Müşteri ekle</a></p></div></div>', esc_url( hk_url( 'musteriler', array( 'islem' => 'yeni' ) ) ) );
 		return;
 	}
 
@@ -331,6 +363,15 @@ function hk_sayfa_panel() {
 	hk_kart( 'Bekleyen alacak (tüm yıllar)', hk_para( $t_bekle ), $t_bekle > 0 ? 'hk-k-kirmizi' : 'hk-k-gri', count( $alacaklar ) . ' kayıt' );
 	hk_kart( 'Kontrol bekleyen', (string) $kontrol, $kontrol ? 'hk-k-mor' : 'hk-k-gri', $kontrol ? '<a href="' . esc_url( hk_url( 'kontrol' ) ) . '">Listeyi aç</a>' : '' );
 	echo '</div>';
+	$dagitim = hk_hosting_dagitim( $yil );
+	if ( $dagitim['tahmini'] > 0 ) {
+		printf(
+			'<p class="hk-alt">%d hosting paketi ödemesi henüz yapılmadı; tahmini %s gider yukarıdaki rakamlara dahil değil. Ayrıntı için <a href="%s">Raporlar</a>.</p>',
+			(int) $yil,
+			esc_html( hk_para( round( $dagitim['tahmini'] ) ) ),
+			esc_url( hk_url( 'raporlar' ) )
+		);
+	}
 
 	echo '<h2>Yaklaşan yenilemeler <span class="hk-alt">süresi geçmiş ve ' . (int) $panel_gun . ' gün içinde bitecek aktif hizmetler</span></h2>';
 	hk_hizmet_tablosu( $yaklasan, true, 'Bu aralıkta bitecek hizmet yok.' );
@@ -442,7 +483,9 @@ function hk_musteri_formu( $id ) {
 	echo '<input type="hidden" name="id" value="' . (int) $id . '"><table class="form-table"><tbody>';
 	printf( '<tr><th><label for="hk_ad">Ad</label></th><td><input type="text" id="hk_ad" name="ad" class="regular-text" required value="%s"></td></tr>', esc_attr( $m ? $m->ad : '' ) );
 	printf( '<tr><th><label for="hk_firma">Firma</label></th><td><input type="text" id="hk_firma" name="firma" class="regular-text" value="%s"></td></tr>', esc_attr( $m ? $m->firma : '' ) );
+	printf( '<tr><th><label for="hk_yetkili">Yetkili kişi</label></th><td><input type="text" id="hk_yetkili" name="yetkili" class="regular-text" value="%s"><p class="description">Firmada muhatap olduğunuz kişi farklıysa.</p></td></tr>', esc_attr( $m ? $m->yetkili : '' ) );
 	printf( '<tr><th><label for="hk_telefon">Telefon</label></th><td><input type="text" id="hk_telefon" name="telefon" class="regular-text" placeholder="05xx xxx xx xx" value="%s"><p class="description">WhatsApp mesaj bağlantısı için kullanılır.</p></td></tr>', esc_attr( $m ? $m->telefon : '' ) );
+	printf( '<tr><th><label for="hk_telefon2">İkinci telefon</label></th><td><input type="text" id="hk_telefon2" name="telefon2" class="regular-text" value="%s"></td></tr>', esc_attr( $m ? $m->telefon2 : '' ) );
 	printf( '<tr><th><label for="hk_eposta">E-posta</label></th><td><input type="email" id="hk_eposta" name="eposta" class="regular-text" value="%s"></td></tr>', esc_attr( $m ? $m->eposta : '' ) );
 	printf( '<tr><th><label for="hk_notlar">Notlar</label></th><td><textarea id="hk_notlar" name="notlar" rows="5" class="large-text">%s</textarea></td></tr>', esc_textarea( $m ? $m->notlar : '' ) );
 	printf( '<tr><th>Kendi hesabım</th><td><label><input type="checkbox" name="kendi" value="1"%s> Bu hesap kendi alan adlarım için (gelir beklenmez, yalnızca gider izlenir)</label></td></tr>', checked( $m ? (int) $m->kendi : 0, 1, false ) );
@@ -450,7 +493,7 @@ function hk_musteri_formu( $id ) {
 	submit_button( 'Kaydet' );
 	echo '</form>';
 	if ( $m ) {
-		printf( '<p><a class="hk-sil" href="%s" onclick="return confirm(\'Müşteri silinsin mi?\')">Müşteriyi sil</a></p>', esc_url( hk_islem_url( 'musteri_sil', array( 'id' => $m->id ) ) ) );
+		echo '<p>' . hk_dugme( 'musteri_sil', array( 'id' => $m->id ), 'Müşteriyi sil', 'button-link hk-sil', 'Müşteri silinsin mi?' ) . '</p>';
 	}
 	echo '</div>';
 }
@@ -504,7 +547,7 @@ function hk_musteri_detay( $id ) {
 		'gider'    => 0,
 	);
 
-	echo '<p class="hk-iletisim">' . esc_html( implode( '  ·  ', array_filter( array( $m->telefon, $m->eposta ) ) ) ) . '</p>';
+	echo '<p class="hk-iletisim">' . esc_html( implode( '  ·  ', array_filter( array( $m->yetkili, $m->telefon, $m->telefon2, $m->eposta ) ) ) ) . '</p>';
 	if ( $m->notlar ) {
 		echo '<div class="hk-notkutu">' . nl2br( esc_html( $m->notlar ) ) . '</div>';
 	}
@@ -569,28 +612,30 @@ function hk_musteri_mesaj( $id ) {
 	echo '<textarea id="hk_mesaj" rows="10" class="large-text hk-mesaj">' . esc_textarea( $metin ) . '</textarea>';
 	echo '<p class="hk-mesaj-btn">';
 	echo '<button type="button" class="button button-primary" id="hk_kopyala">Kopyala</button> ';
+	$wa2 = hk_wa_numara( $m->telefon2 );
 	if ( $wa ) {
-		echo '<a class="button" id="hk_wa" target="_blank" rel="noopener" href="#" data-no="' . esc_attr( $wa ) . '">WhatsApp ile aç</a> ';
-	} else {
+		echo '<a class="button hk-wa" target="_blank" rel="noopener" href="#" data-no="' . esc_attr( $wa ) . '">WhatsApp ile aç</a> ';
+	}
+	if ( $wa2 ) {
+		echo '<a class="button hk-wa" target="_blank" rel="noopener" href="#" data-no="' . esc_attr( $wa2 ) . '">WhatsApp (2. numara)</a> ';
+	}
+	if ( ! $wa && ! $wa2 ) {
 		echo '<span class="hk-alt">WhatsApp bağlantısı için müşteriye telefon ekleyin.</span> ';
 	}
 	if ( $m->eposta ) {
 		echo '<a class="button" id="hk_mail" href="#" data-to="' . esc_attr( $m->eposta ) . '">E-posta ile aç</a> ';
 	}
 	if ( $x && 'odendi' !== $x->durum ) {
-		printf(
-			'<a class="button" href="%s">Hatırlatıldı olarak işaretle</a> ',
-			esc_url(
-				hk_islem_url(
-					'hareket_hizli',
-					array(
-						'id'   => $x->id,
-						'ne'   => 'hatirlat',
-						'geri' => rawurlencode( $geri ),
-					)
-				)
-			)
-		);
+		echo hk_dugme(
+			'hareket_hizli',
+			array(
+				'id'   => $x->id,
+				'ne'   => 'hatirlat',
+				'geri' => $geri,
+			),
+			'Hatırlatıldı olarak işaretle',
+			'button'
+		) . ' ';
 	}
 	echo '<a href="' . esc_url( $geri ) . '">Müşteriye dön</a></p>';
 	?>
@@ -604,8 +649,9 @@ function hk_musteri_mesaj( $id ) {
 			k.textContent = 'Kopyalandı';
 			setTimeout(function () { k.textContent = 'Kopyala'; }, 1500);
 		});
-		var wa = document.getElementById('hk_wa');
-		if (wa) { wa.addEventListener('click', function () { wa.href = 'https://wa.me/' + wa.dataset.no + '?text=' + encodeURIComponent(t.value); }); }
+		document.querySelectorAll('.hk-wa').forEach(function (wa) {
+			wa.addEventListener('click', function () { wa.href = 'https://wa.me/' + wa.dataset.no + '?text=' + encodeURIComponent(t.value); });
+		});
 		var ml = document.getElementById('hk_mail');
 		if (ml) { ml.addEventListener('click', function () { ml.href = 'mailto:' + ml.dataset.to + '?subject=' + encodeURIComponent('Alan adı / hosting yenileme') + '&body=' + encodeURIComponent(t.value); }); }
 	})();
@@ -670,18 +716,43 @@ function hk_hizmet_formu( $id ) {
 	}
 	echo '</select></td></tr>';
 	printf( '<tr><th><label for="hk_ad">Ad</label></th><td><input type="text" id="hk_ad" name="ad" class="regular-text" required placeholder="ornek.com" value="%s"></td></tr>', esc_attr( $h ? $h->ad : '' ) );
-	printf( '<tr><th><label for="hk_firma">Kayıt / hosting firması</label></th><td><input type="text" id="hk_firma" name="firma" class="regular-text" list="hk_firmalar" value="%s"><datalist id="hk_firmalar"><option value="Metunic"><option value="GoDaddy"><option value="Güzel Hosting"><option value="Doruk"><option value="Veridyen"></datalist></td></tr>', esc_attr( $h ? $h->firma : '' ) );
+	printf( '<tr><th><label for="hk_firma">Kayıt firması / sağlayıcı</label></th><td><input type="text" id="hk_firma" name="firma" class="regular-text" list="hk_firmalar" value="%s"><datalist id="hk_firmalar"><option value="Metunic"><option value="GoDaddy"><option value="Güzel Hosting"><option value="Doruk"><option value="Veridyen"></datalist></td></tr>', esc_attr( $h ? $h->firma : '' ) );
 	printf( '<tr><th><label for="hk_bitis">Bitiş tarihi</label></th><td><input type="date" id="hk_bitis" name="bitis" value="%s"></td></tr>', esc_attr( $h && $h->bitis ? $h->bitis : '' ) );
 	printf( '<tr><th><label for="hk_maliyet">Yıllık maliyet (₺)</label></th><td><input type="text" id="hk_maliyet" name="maliyet" class="small-text hk-para" inputmode="decimal" value="%s"><p class="description">Kayıt firmasına ödediğiniz tutar.</p></td></tr>', esc_attr( $h && null !== $h->maliyet ? number_format( (float) $h->maliyet, 2, ',', '' ) : '' ) );
 	printf( '<tr><th><label for="hk_fiyat">Müşteri fiyatı (₺)</label></th><td><input type="text" id="hk_fiyat" name="fiyat" class="small-text hk-para" inputmode="decimal" value="%s"><p class="description">Müşteriden yıllık aldığınız tutar. Kendi alan adlarınız için boş bırakın.</p></td></tr>', esc_attr( $h && null !== $h->fiyat ? number_format( (float) $h->fiyat, 2, ',', '' ) : '' ) );
+	echo '<tr class="hk-hosting-alani"><th><label for="hk_bagli">Bağlı alan adı</label></th><td><select name="bagli_id" id="hk_bagli"><option value="0">— bağlı değil —</option>';
+	$grup = null;
+	foreach ( hk_hizmetler( array( 'tur' => 'domain' ) ) as $d ) {
+		if ( $grup !== $d->musteri_ad ) {
+			echo ( null !== $grup ? '</optgroup>' : '' ) . '<optgroup label="' . esc_attr( $d->musteri_ad ) . '">';
+			$grup = $d->musteri_ad;
+		}
+		printf( '<option value="%d"%s>%s</option>', (int) $d->id, selected( $h ? (int) $h->bagli_id : 0, (int) $d->id, false ), esc_html( $d->ad ) );
+	}
+	echo ( null !== $grup ? '</optgroup>' : '' ) . '</select><p class="description">Seçerseniz alan adı yenilendiğinde hostingin bitiş tarihi de aynı güne taşınır. Tarihi yine elle değiştirebilirsiniz.</p></td></tr>';
+	printf( '<tr class="hk-hosting-alani"><th><label for="hk_pay">Pay sayısı</label></th><td><input type="number" id="hk_pay" name="pay" class="small-text" min="1" max="99" value="%d"><p class="description">Bu kayıt kaç hosting hesabını temsil ediyor? Hosting paketi maliyeti pay sayısına göre dağıtılır.</p></td></tr>', $h ? max( 1, (int) $h->pay ) : 1 );
+	printf(
+		'<tr class="hk-hosting-alani"><th>Hosting seçenekleri</th><td><label><input type="checkbox" name="musteri_oder" value="1"%s> Ücretini müşteri sağlayıcıya kendisi ödüyor (bana maliyeti yok, paket dağıtımına girmez)</label><br><label><input type="checkbox" name="paket" value="1"%s> Bu bir hosting paketi (ör. bayi paketi): gideri, aynı sağlayıcıda hostingi olan müşterilere dağıtılır</label></td></tr>',
+		checked( $h ? (int) $h->musteri_oder : 0, 1, false ),
+		checked( $h ? (int) $h->paket : 0, 1, false )
+	);
 	printf( '<tr><th>Durum</th><td><label><input type="checkbox" name="aktif" value="1"%s> Aktif</label><br><label><input type="checkbox" name="kontrol" value="1"%s> Kontrol edilecek olarak işaretle</label></td></tr>', checked( $h ? (int) $h->aktif : 1, 1, false ), checked( $h ? (int) $h->kontrol : 0, 1, false ) );
 	printf( '<tr><th><label for="hk_notlar">Notlar</label></th><td><textarea id="hk_notlar" name="notlar" rows="3" class="large-text">%s</textarea></td></tr>', esc_textarea( $h ? $h->notlar : '' ) );
 	echo '</tbody></table>';
 	submit_button( 'Kaydet' );
 	echo '</form>';
 	if ( $h ) {
-		printf( '<p><a class="hk-sil" href="%s" onclick="return confirm(\'Hizmet silinsin mi? Hareket kayıtları korunur.\')">Hizmeti sil</a></p>', esc_url( hk_islem_url( 'hizmet_sil', array( 'id' => $h->id, 'geri' => rawurlencode( hk_url( 'hizmetler' ) ) ) ) ) );
+		echo '<p>' . hk_dugme( 'hizmet_sil', array( 'id' => $h->id, 'geri' => hk_url( 'hizmetler' ) ), 'Hizmeti sil', 'button-link hk-sil', 'Hizmet silinsin mi? Hareket kayıtları korunur.' ) . '</p>';
 	}
+	?>
+	<script>
+	(function () {
+		var t = document.getElementById('hk_tur');
+		function g() { document.querySelectorAll('.hk-hosting-alani').forEach(function (e) { e.style.display = t.value === 'hosting' ? '' : 'none'; }); }
+		t.addEventListener('change', g); g();
+	})();
+	</script>
+	<?php
 	echo '</div>';
 }
 
@@ -702,16 +773,31 @@ function hk_hizmet_yenile_formu( $id ) {
 
 	hk_baslik( 'Yenile – ' . $h->ad );
 	echo '<p>' . esc_html( $h->musteri_ad ) . ' · mevcut bitiş: <strong>' . esc_html( hk_tarih( $h->bitis ) ) . '</strong> ' . hk_kalan_rozet( $h->bitis ) . '</p>';
+	if ( $h->paket ) {
+		echo '<div class="hk-notkutu">Bu bir hosting paketi. Ödediğiniz tutar gider olarak kaydedilir ve raporlarda aynı sağlayıcıdaki müşterilere dağıtılır; bu yılın tahmini gideri yerine gerçek tutar geçer.</div>';
+	} elseif ( 'hosting' === $h->tur && ! $h->musteri_oder && ! $h->kendi ) {
+		$pb = hk_pay_basi( $h->firma );
+		if ( $pb ) {
+			echo '<div class="hk-notkutu">Bu hostingin size maliyeti yaklaşık <strong>' . esc_html( hk_para( round( $pb['pay_basi'] * max( 1, (int) $h->pay ) ) ) ) . '</strong> (' . (int) $h->pay . ' pay' . ( $pb['tahmini'] ? ', bu yılın paket ödemesi yapılmadığı için tahmini' : '' ) . '). Fiyat verirken bunu taban alın. Bu sayfada gider girmeyin; maliyet paketten dağıtılıyor.</div>';
+		}
+	} elseif ( 'domain' === $h->tur ) {
+		global $wpdb;
+		$bagli = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . hk_t( 'hizmetler' ) . ' WHERE bagli_id = %d', $h->id ) );
+		if ( $bagli ) {
+			echo '<div class="hk-notkutu">Bu alan adına bağlı ' . (int) $bagli . ' hosting kaydının bitiş tarihi de aynı güne taşınacak.</div>';
+		}
+	}
+	$paylasimli = ( 'hosting' === $h->tur && ! $h->paket && ! $h->musteri_oder );
 	hk_form_ac( 'hizmet_yenile', hk_geri_al() );
 	echo '<input type="hidden" name="id" value="' . (int) $id . '"><table class="form-table"><tbody>';
 	printf( '<tr><th><label for="hk_yeni_bitis">Yeni bitiş tarihi</label></th><td><input type="date" id="hk_yeni_bitis" name="yeni_bitis" required value="%s"></td></tr>', esc_attr( $yeni ) );
 
-	echo '<tr><th>Gider</th><td><label><input type="checkbox" name="gider_ac" value="1" checked> Kayıt firmasına ödediğim tutarı gider olarak kaydet</label><br>';
+	echo '<tr><th>Gider</th><td><label><input type="checkbox" name="gider_ac" value="1"' . ( $paylasimli ? '' : ' checked' ) . '> Firmaya ödediğim tutarı gider olarak kaydet</label><br>';
 	printf( '<input type="text" name="gider_tutar" class="small-text hk-para" inputmode="decimal" value="%s"> ₺ &nbsp; ödeme tarihi <input type="date" name="gider_tarih" value="%s">', esc_attr( null !== $h->maliyet ? number_format( (float) $h->maliyet, 2, ',', '' ) : '' ), esc_attr( $bugun ) );
 	echo '<p class="description">Tutar boşsa gider kaydı açılmaz. Girdiğiniz tutar hizmetin yeni yıllık maliyeti olur.</p></td></tr>';
 
 	echo '<tr><th>Müşteriden alacak</th><td>';
-	printf( '<label><input type="checkbox" name="alacak_ac" value="1"%s> Müşteri için alacak kaydı aç</label><br>', checked( ! $h->kendi, true, false ) );
+	printf( '<label><input type="checkbox" name="alacak_ac" value="1"%s> Müşteri için alacak kaydı aç</label><br>', checked( ! $h->kendi && ! $h->paket, true, false ) );
 	printf(
 		'<input type="text" name="alacak_tutar" id="hk_alacak" class="small-text hk-para" inputmode="decimal" value="%s"> ₺ &nbsp; ',
 		esc_attr( null !== $onceki ? number_format( round( $onceki * ( 1 + $zam / 100 ) ), 0, ',', '' ) : '' )
@@ -749,16 +835,22 @@ function hk_sayfa_hareketler() {
 		hk_hareket_formu( (int) hk_get( 'id', 0 ) );
 		return;
 	}
+	if ( 'toplu' === $islem ) {
+		hk_hareket_toplu_formu();
+		return;
+	}
 	$f = array(
 		'musteri_id' => (int) hk_get( 'musteri_id', 0 ),
 		'tur'        => hk_get( 'tur' ),
 		'durum'      => hk_get( 'durum' ),
 		'donem'      => (int) hk_get( 'donem', 0 ),
+		'kategori'   => hk_get( 'kategori' ),
 	);
 	hk_baslik(
 		'Hareketler',
 		array(
 			'Yeni hareket' => hk_url( 'hareketler', array( 'islem' => 'yeni' ) ),
+			'Toplu giriş'  => hk_url( 'hareketler', array( 'islem' => 'toplu' ) ),
 			'CSV indir'    => hk_islem_url( 'csv', array_filter( $f ) ),
 		)
 	);
@@ -774,7 +866,7 @@ function hk_sayfa_hareketler() {
 	foreach ( hk_durumlar() as $k => $e ) {
 		printf( '<option value="%s"%s>%s</option>', esc_attr( $k ), selected( $f['durum'], $k, false ), esc_html( $e ) );
 	}
-	echo '</select> <button class="button">Filtrele</button></form>';
+	echo '</select> ' . hk_kategori_select( $f['kategori'], 'kategori', 'Tüm kategoriler' ) . ' <button class="button">Filtrele</button></form>';
 
 	$liste  = hk_hareketler( $f );
 	$tahsil = 0;
@@ -822,6 +914,7 @@ function hk_hareket_formu( $id ) {
 		printf( '<option value="%d"%s>%s</option>', (int) $h->id, selected( $x ? (int) $x->hizmet_id : 0, (int) $h->id, false ), esc_html( $h->ad ) );
 	}
 	echo ( null !== $grup ? '</optgroup>' : '' ) . '</select></td></tr>';
+	echo '<tr><th>Kategori</th><td>' . hk_kategori_select( $x ? $x->kategori : 'yenileme' ) . '<p class="description">Yeni site veya site yenileme gelirlerini ayrı işaretlerseniz raporlarda ayrı görünür. Hosting paketi ödemeleri için "Hosting paketi" seçin.</p></td></tr>';
 	printf( '<tr><th><label for="hk_tutar">Tutar (₺)</label></th><td><input type="text" id="hk_tutar" name="tutar" class="small-text hk-para" inputmode="decimal" required value="%s"></td></tr>', esc_attr( $x ? number_format( (float) $x->tutar, 2, ',', '' ) : '' ) );
 	printf( '<tr><th><label for="hk_tarih">Tarih</label></th><td><input type="date" id="hk_tarih" name="tarih" value="%s"><p class="description">Gelirde: ödemenin istendiği tarih. Giderde: ödediğiniz tarih.</p></td></tr>', esc_attr( $x ? (string) $x->tarih : hk_bugun() ) );
 	printf( '<tr><th><label for="hk_donem">Dönem (yıl)</label></th><td><input type="number" id="hk_donem" name="donem" class="small-text" min="2000" max="2100" value="%d"><p class="description">Kaydın hangi yılın hesabına yazılacağı.</p></td></tr>', $x ? (int) $x->donem : (int) current_time( 'Y' ) );
@@ -838,7 +931,7 @@ function hk_hareket_formu( $id ) {
 	submit_button( 'Kaydet' );
 	echo '</form>';
 	if ( $x ) {
-		printf( '<p><a class="hk-sil" href="%s" onclick="return confirm(\'Hareket silinsin mi?\')">Hareketi sil</a></p>', esc_url( hk_islem_url( 'hareket_sil', array( 'id' => $x->id, 'geri' => rawurlencode( hk_geri_al() ? hk_geri_al() : hk_url( 'hareketler' ) ) ) ) ) );
+		echo '<p>' . hk_dugme( 'hareket_sil', array( 'id' => $x->id, 'geri' => hk_geri_al() ? hk_geri_al() : hk_url( 'hareketler' ) ), 'Hareketi sil', 'button-link hk-sil', 'Hareket silinsin mi?' ) . '</p>';
 	}
 	?>
 	<script>
@@ -856,6 +949,30 @@ function hk_hareket_formu( $id ) {
 	echo '</div>';
 }
 
+function hk_hareket_toplu_formu() {
+	hk_baslik( 'Toplu giriş' );
+	echo '<p>Geçmiş yılların kayıtlarını hızlı girmek için. Tutarı boş bıraktığınız satırlar atlanır. Kayıtlar "ödendi" olarak eklenir; dönem boşsa tarihin yılı kullanılır. Tarihini bilmediğiniz kayıtlarda yalnızca dönemi yazmanız yeterli.</p>';
+	hk_form_ac( 'hareket_toplu' );
+	$musteriler = hk_musteriler();
+	echo '<table class="wp-list-table widefat striped hk-tablo hk-toplu"><thead><tr><th>Tarih</th><th>Dönem</th><th>Müşteri</th><th>Tür</th><th>Kategori</th><th>Tutar (₺)</th><th>Açıklama</th></tr></thead><tbody>';
+	for ( $i = 0; $i < 12; $i++ ) {
+		echo '<tr><td><input type="date" name="s[' . $i . '][tarih]"></td>';
+		echo '<td><input type="number" name="s[' . $i . '][donem]" class="small-text" min="2000" max="2100" placeholder="yıl"></td>';
+		echo '<td><select name="s[' . $i . '][musteri_id]"><option value="0">—</option>';
+		foreach ( $musteriler as $m ) {
+			printf( '<option value="%d">%s</option>', (int) $m->id, esc_html( $m->ad ) );
+		}
+		echo '</select></td>';
+		echo '<td><select name="s[' . $i . '][tur]"><option value="gelir">Gelir</option><option value="gider">Gider</option></select></td>';
+		echo '<td>' . hk_kategori_select( 'yenileme', 's[' . $i . '][kategori]' ) . '</td>';
+		echo '<td><input type="text" name="s[' . $i . '][tutar]" class="hk-para" inputmode="decimal"></td>';
+		echo '<td><input type="text" name="s[' . $i . '][aciklama]" class="regular-text"></td></tr>';
+	}
+	echo '</tbody></table>';
+	submit_button( 'Kayıtları ekle' );
+	echo '</form></div>';
+}
+
 /* ---------- Kontrol edilecekler ---------- */
 
 function hk_sayfa_kontrol() {
@@ -866,7 +983,7 @@ function hk_sayfa_kontrol() {
 		echo '<div class="hk-bos"><h2>Kontrol bekleyen kayıt yok</h2><p>Tüm kayıtlar onaylanmış.</p></div></div>';
 		return;
 	}
-	echo '<p>Bu kayıtlar Google Sheets tablosundan aktarılırken tarih, tutar ya da durum tam anlaşılamadığı için işaretlendi. Doğruysa <strong>Onayla</strong>, değilse <strong>Düzenle</strong> ile düzeltin. Yenilenmiş alan adlarının tarihini <strong>+1 yıl</strong> ile ilerletebilirsiniz (gider kaydı açmaz).</p>';
+	echo '<p>Bu kayıtlar, tarih, tutar ya da durumu belirsiz olduğu için işaretlendi. Doğruysa <strong>Onayla</strong>, değilse <strong>Düzenle</strong> ile düzeltin. Yenilenmiş alan adlarının tarihini <strong>+1 yıl</strong> ile ilerletebilirsiniz (gider kaydı açmaz).</p>';
 
 	echo '<h2>Hizmetler <span class="hk-alt">' . count( $hz ) . ' kayıt</span></h2>';
 	echo '<table class="wp-list-table widefat striped hk-tablo"><thead><tr><th>Hizmet</th><th>Müşteri</th><th>Tablodaki tarih</th><th>Neden işaretli</th><th>İşlem</th></tr></thead><tbody>';
@@ -874,9 +991,9 @@ function hk_sayfa_kontrol() {
 		$geri = rawurlencode( hk_su_an() );
 		echo '<tr><td><strong>' . esc_html( $h->ad ) . '</strong></td><td>' . esc_html( $h->musteri_ad ) . '</td><td>' . esc_html( hk_tarih( $h->bitis ) ) . ' ' . hk_kalan_rozet( $h->bitis ) . '</td><td>' . esc_html( (string) $h->notlar ) . '</td><td class="hk-islem">';
 		if ( $h->bitis ) {
-			printf( '<a class="button button-small button-primary" href="%s">+1 yıl</a> ', esc_url( hk_islem_url( 'hizmet_hizli', array( 'id' => $h->id, 'ne' => 'ilerlet', 'geri' => $geri ) ) ) );
+			echo hk_dugme( 'hizmet_hizli', array( 'id' => $h->id, 'ne' => 'ilerlet' ), '+1 yıl', 'button button-small button-primary' ) . ' ';
 		}
-		printf( '<a class="button button-small" href="%s">Onayla</a> ', esc_url( hk_islem_url( 'hizmet_hizli', array( 'id' => $h->id, 'ne' => 'onayla', 'geri' => $geri ) ) ) );
+		echo hk_dugme( 'hizmet_hizli', array( 'id' => $h->id, 'ne' => 'onayla' ), 'Onayla' ) . ' ';
 		printf( '<a class="button button-small" href="%s">Düzenle</a>', esc_url( hk_url( 'hizmetler', array( 'islem' => 'duzenle', 'id' => $h->id, 'geri' => $geri ) ) ) );
 		echo '</td></tr>';
 	}
@@ -892,7 +1009,7 @@ function hk_sayfa_kontrol() {
 		echo '<tr><td>' . (int) $x->donem . '</td><td>' . esc_html( hk_tarih( $x->tarih ) ) . '</td><td>' . esc_html( $x->musteri_ad ) . '</td>';
 		echo '<td>' . ( $x->hizmet_ad ? '<strong>' . esc_html( $x->hizmet_ad ) . '</strong>' : '' ) . '<div class="hk-not">' . esc_html( (string) $x->aciklama ) . '</div></td>';
 		echo '<td class="hk-sag">' . ( 'gelir' === $x->tur ? esc_html( hk_para( $x->tutar ) ) : '' ) . '</td><td class="hk-sag">' . ( 'gider' === $x->tur ? esc_html( hk_para( $x->tutar ) ) : '' ) . '</td><td>' . hk_durum_rozet( $x ) . '</td><td class="hk-islem">';
-		printf( '<a class="button button-small button-primary" href="%s">Onayla</a> ', esc_url( hk_islem_url( 'hareket_hizli', array( 'id' => $x->id, 'ne' => 'onayla', 'geri' => $geri ) ) ) );
+		echo hk_dugme( 'hareket_hizli', array( 'id' => $x->id, 'ne' => 'onayla' ), 'Onayla', 'button button-small button-primary' ) . ' ';
 		printf( '<a class="button button-small" href="%s">Düzenle</a>', esc_url( hk_url( 'hareketler', array( 'islem' => 'duzenle', 'id' => $x->id, 'geri' => $geri ) ) ) );
 		echo '</td></tr>';
 	}
@@ -915,6 +1032,29 @@ function hk_sayfa_ayarlar() {
 	echo '</tbody></table><h2>Panel ve yenileme</h2><table class="form-table"><tbody>';
 	printf( '<tr><th><label for="hk_panel_gun">Panelde gösterilecek aralık</label></th><td><input type="number" id="hk_panel_gun" name="panel_gun" class="small-text" min="7" max="365" value="%d"> gün</td></tr>', (int) $a['panel_gun'] );
 	printf( '<tr><th><label for="hk_zam_a">Varsayılan yıllık zam oranı</label></th><td><input type="number" id="hk_zam_a" name="zam" class="small-text" min="0" max="500" step="1" value="%s"> %%<p class="description">Yenilemede müşteri fiyatı önerisi: önceki fiyat × (1 + oran). Her yenilemede değiştirebilirsiniz.</p></td></tr>', esc_attr( $a['zam'] ) );
+	printf( '<tr><th><label for="hk_hzam">Beklenen hosting paketi artışı</label></th><td><input type="number" id="hk_hzam" name="hosting_zam" class="small-text" min="0" max="500" step="1" value="%s"> %%<p class="description">İçinde bulunulan yılın paket ödemesi yapılana kadar tahmini gider: önceki yılın paket gideri × (1 + oran).</p></td></tr>', esc_attr( $a['hosting_zam'] ) );
+	echo '</tbody></table><h2>Kur ve enflasyon</h2><p class="description">Raporlardaki "dolar karşılığı" ve "bugünkü fiyatlarla" görünümleri bu değerleri kullanır. Kur: yıllık ortalama dolar kuru (TCMB). TÜFE: on iki aylık ortalamalara göre değişim (TÜİK). İçinde bulunulan yılın değerleri geçicidir; yıl bitince güncelleyin.</p>';
+	echo '<table class="wp-list-table widefat striped hk-tablo hk-yillar"><thead><tr><th>Yıl</th><th>Ortalama dolar kuru (₺)</th><th>TÜFE (%)</th></tr></thead><tbody>';
+	$yillar = hk_yillar();
+	$son    = $yillar ? max( array_keys( $yillar ) ) : (int) current_time( 'Y' );
+	for ( $yil = max( $son, (int) current_time( 'Y' ) ) + 1; $yil > $son; $yil-- ) {
+		$yillar[ $yil ] = array(
+			'kur'  => '',
+			'tufe' => '',
+		);
+	}
+	ksort( $yillar );
+	foreach ( $yillar as $yil => $v ) {
+		printf(
+			'<tr><td><strong>%d</strong></td><td><input type="text" name="yillar[%d][kur]" class="hk-para" inputmode="decimal" value="%s"></td><td><input type="text" name="yillar[%d][tufe]" class="hk-para" inputmode="decimal" value="%s"></td></tr>',
+			(int) $yil,
+			(int) $yil,
+			esc_attr( '' === $v['kur'] ? '' : str_replace( '.', ',', (string) $v['kur'] ) ),
+			(int) $yil,
+			esc_attr( '' === $v['tufe'] ? '' : str_replace( '.', ',', (string) $v['tufe'] ) )
+		);
+	}
+	echo '</tbody></table><table class="form-table"><tbody>';
 	echo '</tbody></table><h2>Müşteri mesaj şablonu</h2><table class="form-table"><tbody>';
 	printf( '<tr><th><label for="hk_sablon">Şablon</label></th><td><textarea id="hk_sablon" name="sablon" rows="9" class="large-text">%s</textarea><p class="description">Kullanılabilir alanlar: <code>{musteri}</code> <code>{firma}</code> <code>{hizmetler}</code> <code>{tutar}</code> <code>{aciklama}</code> <code>{tarih}</code>. Banka / IBAN bilginizi buraya ekleyebilirsiniz.</p></td></tr>', esc_textarea( $a['sablon'] ) );
 	echo '</tbody></table>';
@@ -925,12 +1065,12 @@ function hk_sayfa_ayarlar() {
 	$sonraki = wp_next_scheduled( 'hk_gunluk' );
 	echo '<p>Günlük kontrol: ' . ( $sonraki ? 'sıradaki çalışma <strong>' . esc_html( wp_date( 'd.m.Y H:i', $sonraki ) ) . '</strong>' : '<strong class="hk-eksi">zamanlanmamış</strong> – eklentiyi devre dışı bırakıp yeniden etkinleştirin' ) . '.</p>';
 	echo '<p class="description">WordPress zamanlanmış görevleri siteye ziyaret geldikçe çalışır. Siteniz az ziyaret alıyorsa cPanel → Cron Jobs bölümünden günde bir kez <code>wp-cron.php</code> çağrısı ekleyin: <code>wget -q -O - ' . esc_html( site_url( 'wp-cron.php?doing_wp_cron' ) ) . ' &gt;/dev/null 2&gt;&amp;1</code></p>';
-	printf( '<p><a class="button" href="%s">Özet e-postasını şimdi gönder (test)</a></p>', esc_url( hk_islem_url( 'test_eposta' ) ) );
+	echo '<p>' . hk_dugme( 'test_eposta', array(), 'Özet e-postasını şimdi gönder (test)', 'button' ) . '</p>';
 
-	if ( ! hk_musteriler() ) {
-		printf( '<p><a class="button button-primary" href="%s">Google Sheets tablo verisini içe aktar</a></p>', esc_url( hk_islem_url( 'ice_aktar' ) ) );
-	} else {
-		echo '<p class="hk-alt">Tablo verisini içe aktarma yalnızca hiç müşteri kaydı yokken kullanılabilir.</p>';
+	echo '<h2>Sürüm</h2><p>Kurulu sürüm: <strong>' . esc_html( HK_VER ) . '</strong></p>';
+	$gunluk = HK_DIR . 'CHANGELOG.md';
+	if ( file_exists( $gunluk ) ) {
+		echo '<pre class="hk-gunluk">' . esc_html( file_get_contents( $gunluk ) ) . '</pre>';
 	}
 	echo '</div>';
 }
