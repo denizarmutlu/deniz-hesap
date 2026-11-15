@@ -1,5 +1,10 @@
 # Değişiklik günlüğü
 
+## 1.2.0 – 15.11.2026
+- Yeni: WordPress başlangıç ekranında "Bugün ne yapmalıyım?" kutusu – yaklaşan yenilemeler, bekleyen alacaklar, yıl özeti, kontrol bekleyen kayıt sayısı ve kısayollar.
+- Yeni: Yardım sayfası – sık yapılan işlerin kısa anlatımı ve sözlük.
+- Yeni: pay sayısı, hosting seçenekleri, dönem ve hosting payı başlıklarında "?" ipuçları.
+
 ## 1.1.0 – 14.11.2026
 - Eklentinin adı "Deniz Hesap" oldu. Veritabanı tabloları ve kayıtlar aynen korunur.
 - Yeni: Raporlar sayfası – yıllara göre gelir, gider ve kâr; gelirin kategoriye göre dağılımı; müşteri kârlılığı; hizmet bazında maliyet ve fiyat; tahsilat performansı.

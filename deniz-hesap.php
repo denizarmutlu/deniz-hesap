@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Deniz Hesap – Domain & Hosting Takip
  * Description:       Müşterilerin alan adı, hosting ve SSL yenilemelerini, ödenen giderleri ve müşterilerden alınan ödemeleri takip eder. Yaklaşan yenilemeler ve bekleyen alacaklar için e-posta hatırlatması gönderir.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Requires at least: 5.8
  * Requires PHP:      7.4
  * Author:            Deniz Armutlu
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'HK_VER', '1.1.0' );
+define( 'HK_VER', '1.2.0' );
 define( 'HK_AD', 'Deniz Hesap' );
 define( 'HK_DIR', plugin_dir_path( __FILE__ ) );
 define( 'HK_URL', plugin_dir_url( __FILE__ ) );
@@ -26,6 +26,8 @@ require_once HK_DIR . 'includes/cron.php';
 if ( is_admin() ) {
 	require_once HK_DIR . 'includes/actions.php';
 	require_once HK_DIR . 'includes/pages.php';
+	require_once HK_DIR . 'includes/yardim.php';
+	require_once HK_DIR . 'includes/widget.php';
 }
 
 register_activation_hook( __FILE__, 'hk_activate' );

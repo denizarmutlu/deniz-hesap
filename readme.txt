@@ -1,7 +1,7 @@
 === Deniz Hesap – Domain & Hosting Takip ===
 Requires at least: 5.8
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 
 Müşterilerin alan adı, hosting ve SSL yenilemelerini, ödenen giderleri ve müşterilerden alınan ödemeleri takip eder; yıllık gelir, gider ve kâr raporları üretir.
 

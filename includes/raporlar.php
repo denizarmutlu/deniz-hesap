@@ -360,7 +360,7 @@ function hk_sayfa_raporlar() {
 		}
 	);
 	echo '<h2>Müşteri kârlılığı <span class="hk-alt">' . (int) $bas . '–' . (int) $bit . '</span></h2>';
-	echo '<table class="wp-list-table widefat striped hk-tablo hk-dar"><thead><tr><th>Müşteri</th><th class="hk-sag">Tahsil edilen</th><th class="hk-sag">Doğrudan gider</th><th class="hk-sag">Hosting payı</th><th class="hk-sag">Net kâr</th><th class="hk-sag">Bekleyen alacak</th></tr></thead><tbody>';
+	echo '<table class="wp-list-table widefat striped hk-tablo hk-dar"><thead><tr><th>Müşteri</th><th class="hk-sag">Tahsil edilen</th><th class="hk-sag">Doğrudan gider</th><th class="hk-sag">Hosting payı' . hk_ipucu( 'Hosting paketi giderinin bu müşteriye düşen kısmı. Sizin satırınızda eksi görünür; toplam değişmez.', 'rapor' ) . '</th><th class="hk-sag">Net kâr</th><th class="hk-sag">Bekleyen alacak</th></tr></thead><tbody>';
 	$t = array(
 		'tahsil'   => 0,
 		'gider'    => 0,

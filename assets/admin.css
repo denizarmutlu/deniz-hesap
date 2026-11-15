@@ -59,3 +59,25 @@ h2 .hk-alt { margin-left: 6px; }
 .hk-tablo.hk-yillar { max-width: 460px; }
 .hk-gunluk { background: #fff; border: 1px solid #dcdcde; border-radius: 4px; padding: 14px 18px; max-width: 860px; white-space: pre-wrap; font-size: 13px; }
 .hk-wrap .notice.inline { margin: 10px 0; max-width: 860px; }
+
+/* 1.2 */
+.hk-ipucu { display: inline-block; width: 16px; height: 16px; line-height: 16px; border-radius: 50%; background: #dcdcde; color: #1d2327; font-size: 11px; font-weight: 600; text-align: center; text-decoration: none; vertical-align: middle; margin-left: 4px; cursor: help; }
+.hk-ipucu:hover, .hk-ipucu:focus { background: #2271b1; color: #fff; }
+.hk-widget h3 { font-size: 13px; font-weight: 600; margin: 14px 0 6px; padding: 0; }
+.hk-widget h3:first-child { margin-top: 2px; }
+.hk-widget .hk-w-tablo { width: 100%; border-collapse: collapse; }
+.hk-widget .hk-w-tablo td { padding: 6px 0; border-top: 1px solid #f0f0f1; vertical-align: top; }
+.hk-widget .hk-w-tablo tr:first-child td { border-top: 0; }
+.hk-widget .hk-sag { text-align: right; white-space: nowrap; }
+.hk-widget .hk-w-ozet { font-variant-numeric: tabular-nums; }
+.hk-widget .hk-w-kisayol { margin: 14px 0 2px; padding-top: 12px; border-top: 1px solid #f0f0f1; }
+.hk-widget .hk-w-kisayol .button-link { margin-left: 6px; }
+.hk-yardim { max-width: 760px; font-size: 14px; }
+.hk-yardim section { background: #fff; border: 1px solid #dcdcde; border-radius: 4px; padding: 4px 22px 10px; margin: 14px 0; scroll-margin-top: 48px; }
+.hk-yardim section h2 { margin: 16px 0 8px; }
+.hk-yardim li { margin-bottom: 6px; }
+.hk-y-icindekiler { columns: 2; column-gap: 32px; background: #fff; border: 1px solid #dcdcde; border-radius: 4px; padding: 14px 22px 10px 40px; margin: 12px 0; }
+.hk-y-yukari { font-size: 12px; text-align: right; margin: 6px 0; }
+.hk-sozluk dt { font-weight: 600; margin-top: 10px; }
+.hk-sozluk dd { margin: 2px 0 0; color: #50575e; }
+@media (max-width: 782px) { .hk-y-icindekiler { columns: 1; } }

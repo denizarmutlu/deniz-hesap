@@ -730,9 +730,9 @@ function hk_hizmet_formu( $id ) {
 		printf( '<option value="%d"%s>%s</option>', (int) $d->id, selected( $h ? (int) $h->bagli_id : 0, (int) $d->id, false ), esc_html( $d->ad ) );
 	}
 	echo ( null !== $grup ? '</optgroup>' : '' ) . '</select><p class="description">Seçerseniz alan adı yenilendiğinde hostingin bitiş tarihi de aynı güne taşınır. Tarihi yine elle değiştirebilirsiniz.</p></td></tr>';
-	printf( '<tr class="hk-hosting-alani"><th><label for="hk_pay">Pay sayısı</label></th><td><input type="number" id="hk_pay" name="pay" class="small-text" min="1" max="99" value="%d"><p class="description">Bu kayıt kaç hosting hesabını temsil ediyor? Hosting paketi maliyeti pay sayısına göre dağıtılır.</p></td></tr>', $h ? max( 1, (int) $h->pay ) : 1 );
+	printf( '<tr class="hk-hosting-alani"><th><label for="hk_pay">Pay sayısı</label>' . hk_ipucu( 'Bu kayıt kaç hosting hesabını temsil ediyor? Paket gideri pay sayısına göre bölünür.', 'paket' ) . '</th><td><input type="number" id="hk_pay" name="pay" class="small-text" min="1" max="99" value="%d"><p class="description">Bu kayıt kaç hosting hesabını temsil ediyor? Hosting paketi maliyeti pay sayısına göre dağıtılır.</p></td></tr>', $h ? max( 1, (int) $h->pay ) : 1 );
 	printf(
-		'<tr class="hk-hosting-alani"><th>Hosting seçenekleri</th><td><label><input type="checkbox" name="musteri_oder" value="1"%s> Ücretini müşteri sağlayıcıya kendisi ödüyor (bana maliyeti yok, paket dağıtımına girmez)</label><br><label><input type="checkbox" name="paket" value="1"%s> Bu bir hosting paketi (ör. bayi paketi): gideri, aynı sağlayıcıda hostingi olan müşterilere dağıtılır</label></td></tr>',
+		'<tr class="hk-hosting-alani"><th>Hosting seçenekleri' . hk_ipucu( 'Paket: gideri müşterilere dağıtılan toplu hosting. Müşteri öder: size maliyeti olmayan hosting.', 'paket' ) . '</th><td><label><input type="checkbox" name="musteri_oder" value="1"%s> Ücretini müşteri sağlayıcıya kendisi ödüyor (bana maliyeti yok, paket dağıtımına girmez)</label><br><label><input type="checkbox" name="paket" value="1"%s> Bu bir hosting paketi (ör. bayi paketi): gideri, aynı sağlayıcıda hostingi olan müşterilere dağıtılır</label></td></tr>',
 		checked( $h ? (int) $h->musteri_oder : 0, 1, false ),
 		checked( $h ? (int) $h->paket : 0, 1, false )
 	);
@@ -917,7 +917,7 @@ function hk_hareket_formu( $id ) {
 	echo '<tr><th>Kategori</th><td>' . hk_kategori_select( $x ? $x->kategori : 'yenileme' ) . '<p class="description">Yeni site veya site yenileme gelirlerini ayrı işaretlerseniz raporlarda ayrı görünür. Hosting paketi ödemeleri için "Hosting paketi" seçin.</p></td></tr>';
 	printf( '<tr><th><label for="hk_tutar">Tutar (₺)</label></th><td><input type="text" id="hk_tutar" name="tutar" class="small-text hk-para" inputmode="decimal" required value="%s"></td></tr>', esc_attr( $x ? number_format( (float) $x->tutar, 2, ',', '' ) : '' ) );
 	printf( '<tr><th><label for="hk_tarih">Tarih</label></th><td><input type="date" id="hk_tarih" name="tarih" value="%s"><p class="description">Gelirde: ödemenin istendiği tarih. Giderde: ödediğiniz tarih.</p></td></tr>', esc_attr( $x ? (string) $x->tarih : hk_bugun() ) );
-	printf( '<tr><th><label for="hk_donem">Dönem (yıl)</label></th><td><input type="number" id="hk_donem" name="donem" class="small-text" min="2000" max="2100" value="%d"><p class="description">Kaydın hangi yılın hesabına yazılacağı.</p></td></tr>', $x ? (int) $x->donem : (int) current_time( 'Y' ) );
+	printf( '<tr><th><label for="hk_donem">Dönem (yıl)</label>' . hk_ipucu( 'Kaydın hangi yılın hesabına yazılacağı. Raporlar döneme göre toplar.', 'gecmis' ) . '</th><td><input type="number" id="hk_donem" name="donem" class="small-text" min="2000" max="2100" value="%d"><p class="description">Kaydın hangi yılın hesabına yazılacağı.</p></td></tr>', $x ? (int) $x->donem : (int) current_time( 'Y' ) );
 	echo '<tr class="hk-gelir-alani"><th><label for="hk_durum">Durum</label></th><td><select name="durum" id="hk_durum">';
 	foreach ( hk_durumlar() as $k => $e ) {
 		printf( '<option value="%s"%s>%s</option>', esc_attr( $k ), selected( $x ? $x->durum : 'istendi', $k, false ), esc_html( $e ) );
